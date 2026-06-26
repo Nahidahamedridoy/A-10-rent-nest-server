@@ -24,8 +24,9 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         const db = client.db("rent_nest");
-
+        // onek gula
         const propertiesCollection = db.collection("properties");
+        // akta
         const propertyCollection = db.collection("property");
         const bookingCollection = db.collection("bookings");
         const paymentCollection = db.collection("payments");
@@ -150,9 +151,48 @@ async function run() {
             res.send(result);
         });
 
-        
+
         // PROPERTY COLLECTION (Pending Approval)
-        
+
+
+        // data dashBoard a show er jonno
+        app.get('/api/property', async (req, res) => {
+
+            const search = req.query.search;
+            const location = req.query.location;
+            const propertyType = req.query.propertyType;
+            const query = {}; // {title: "mern"}
+            if (search) {
+                query.title = {
+                    $regex: search,
+                    $options: "i"  
+                };
+            }
+            //cat =====> propertyType
+            if (propertyType) {
+                // query.propertyType = propertyType;  -------single
+                //?category=Apartment , Villa
+                // console.log(propertyType , propertyType.split(","));
+
+                query.propertyType = { $in:propertyType.split(",") }  //----> multiple
+            }
+
+            if (location) {
+                query.location = location;
+            }
+
+            const cursor = propertyCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        });
+
+        // [id]/single page er jonno
+        app.get('/api/single-property/:id', async (req, res) => {
+            const { id } = req.params;
+            const query = { _id: new ObjectId(id) };
+            const result = await propertyCollection.findOne(query);
+            res.send(result);
+        });
 
         // Get property by owner email
         app.get("/api/property/:email", async (req, res) => {
@@ -169,7 +209,11 @@ async function run() {
 
         // Add property
         app.post("/api/property", async (req, res) => {
-            const result = await propertyCollection.insertOne(req.body);
+            const data = req.body;
+            const result = await propertyCollection.insertOne({
+                ...data,
+                status: "pending",
+            });
 
             res.send(result);
         });
