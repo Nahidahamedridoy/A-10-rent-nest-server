@@ -165,7 +165,7 @@ async function run() {
             if (search) {
                 query.title = {
                     $regex: search,
-                    $options: "i"  
+                    $options: "i"
                 };
             }
             //cat =====> propertyType
@@ -174,7 +174,7 @@ async function run() {
                 //?category=Apartment , Villa
                 // console.log(propertyType , propertyType.split(","));
 
-                query.propertyType = { $in:propertyType.split(",") }  //----> multiple
+                query.propertyType = { $in: propertyType.split(",") }  //----> multiple
             }
 
             if (location) {
@@ -205,6 +205,35 @@ async function run() {
                 .toArray();
 
             res.send(result);
+        });
+        // payment , booking
+        app.post("/api/property/booking", async (req, res) => {
+            const { amount, propertyId, propertyTitle, quantity, email, paymentType, transactionId, paymentStatus } = req.body;
+
+            // console.log(req.body);
+
+            const bookingData = {
+                propertyId,
+                propertyTitle,
+                tenantEmail : email,
+                quantity,
+                amount,
+                transactionId,
+                paymentStatus,
+                bookingDate: new Date(),
+            };
+            const bookingRes = await bookingCollection.insertOne(bookingData);
+
+            const paymentData ={
+                userEmail: email,
+                amount,
+                transactionId,
+                paymentStatus,
+                paymentType
+            }
+
+            await paymentCollection.insertOne(paymentData);
+            res.send(bookingRes);
         });
 
         // Add property
@@ -237,7 +266,6 @@ async function run() {
                     $set: req.body,
                 }
             );
-
             res.send(result);
         });
 
