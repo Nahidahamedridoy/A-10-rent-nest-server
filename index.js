@@ -31,9 +31,7 @@ async function run() {
         const bookingCollection = db.collection("bookings");
         const paymentCollection = db.collection("payments");
 
-        // =====================================
         // PROPERTIES COLLECTION
-        // =====================================
 
         // Get all properties by owner email
         app.get("/api/properties/:email", async (req, res) => {
@@ -206,6 +204,14 @@ async function run() {
 
             res.send(result);
         });
+
+        // tenant my booking 
+        app.get("/api/property/booking/:email" , async(req, res) =>{
+            const {email} = req.params;
+            const result = bookingCollection.find({tenantEmail:email}).toArray();
+            return result;
+        })
+
         // payment , booking
         app.post("/api/property/booking", async (req, res) => {
             const { amount, propertyId, propertyTitle, duration, rentType, email, paymentType, transactionId, paymentStatus } = req.body;
