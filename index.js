@@ -208,27 +208,28 @@ async function run() {
         });
         // payment , booking
         app.post("/api/property/booking", async (req, res) => {
-            const { amount, propertyId, propertyTitle, quantity, email, paymentType, transactionId, paymentStatus } = req.body;
+            const { amount, propertyId, propertyTitle, duration, rentType, email, paymentType, transactionId, paymentStatus } = req.body;
 
             // console.log(req.body);
 
             const bookingData = {
                 propertyId,
                 propertyTitle,
-                tenantEmail : email,
-                quantity,
+                tenantEmail: email,
+                duration,
                 amount,
+                rentType,
                 transactionId,
                 paymentStatus,
                 bookingDate: new Date(),
             };
             const bookingRes = await bookingCollection.insertOne(bookingData);
 
-            const paymentData ={
+            const paymentData = {
                 userEmail: email,
                 amount,
                 transactionId,
-                paymentStatus,
+                paymentStatus: paymentType || "property_rent",
                 paymentType
             }
 
