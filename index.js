@@ -223,6 +223,10 @@ async function run() {
                 paymentStatus,
                 bookingDate: new Date(),
             };
+            const isBookingExist = await bookingCollection.findOne({ transactionId });
+            if (isBookingExist) {
+                return res.status(200).send({ message: "Already paid" })
+            }
             const bookingRes = await bookingCollection.insertOne(bookingData);
 
             const paymentData = {
