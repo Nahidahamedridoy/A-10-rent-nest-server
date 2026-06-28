@@ -30,6 +30,7 @@ async function run() {
         const propertyCollection = db.collection("property");
         const bookingCollection = db.collection("bookings");
         const paymentCollection = db.collection("payments");
+        const favoritesCollection = db.collection("favorites");
 
         // PROPERTIES COLLECTION
 
@@ -79,6 +80,16 @@ async function run() {
             const result = await propertiesCollection.insertOne(addData);
 
             res.send(result);
+        });
+
+        // tenant my booking 
+        app.get("/api/property/booking/:email", async (req, res) => {
+            const { email } = req.params;
+            console.log(email);
+
+            const result = await bookingCollection.find({ tenantEmail: email }).toArray();
+            console.log(result);
+            res.send(result)
         });
 
         // Update property
@@ -205,23 +216,19 @@ async function run() {
             res.send(result);
         });
 
-        // tenant my booking 
-        app.get("/api/property/booking/:email" , async(req, res) =>{
-            const {email} = req.params;
-            const result = bookingCollection.find({tenantEmail:email}).toArray();
-            return result;
-        })
+
 
         // payment , booking
         app.post("/api/property/booking", async (req, res) => {
-            const { amount, propertyId, propertyTitle, duration, rentType, email, paymentType, transactionId, paymentStatus } = req.body;
+            const { amount, propertyId, propertyTitle, duration, rentType,
+                tenantEmail, paymentType, transactionId, paymentStatus } = req.body;
 
             // console.log(req.body);
 
             const bookingData = {
                 propertyId,
                 propertyTitle,
-                tenantEmail: email,
+                tenantEmail,
                 duration,
                 amount,
                 rentType,
@@ -236,11 +243,11 @@ async function run() {
             const bookingRes = await bookingCollection.insertOne(bookingData);
 
             const paymentData = {
-                userEmail: email,
+                userEmail: tenantEmail,
                 amount,
                 transactionId,
-                paymentStatus: paymentType || "property_rent",
-                paymentType
+                paymentType: paymentType || "property_rent",
+                paymentStatus
             }
 
             await paymentCollection.insertOne(paymentData);
@@ -297,6 +304,80 @@ async function run() {
 
             res.send(result);
         });
+
+        // delete fvt
+        app.delete("/api/favorites/:id", async (req, res) => {
+            const { id } = req.params;
+
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({
+                    success: false,
+                    message: "Invalid Favorite ID",
+                });
+            }
+
+            const result = await favoritesCollection.deleteOne({
+                _id: new ObjectId(id),
+            });
+
+            res.send(result);
+        });
+
+        //favorites
+
+        // fvt post
+        app.post("/api/favorites", async (req, res) => {
+            const {
+                propertyId,
+                tenantEmail,
+                tenantName,
+                propertyTitle,
+                location,
+                price,
+                image,
+                ownerEmail,
+            } = req.body;
+
+            const exists = await favoritesCollection.findOne({
+                propertyId,
+                tenantEmail,
+            });
+
+            if (exists) {
+                return res.status(400).send({
+                    success: false,
+                    message: "Property already added to favorites",
+                });
+            }
+
+            const favoriteData = {
+                propertyId,
+                tenantEmail,
+                tenantName,
+                propertyTitle,
+                location,
+                price,
+                image,
+                ownerEmail,
+                createdAt: new Date(),
+            };
+
+            const result = await favoritesCollection.insertOne(favoriteData);
+
+            res.send(result);
+        });
+
+        //fvt email
+
+        app.get("/api/favorites/:email", async (req, res) => {
+            const { email } = req.params;
+
+            const result = await favoritesCollection.find({ tenantEmail: email }).toArray();
+
+            res.send(result);
+        });
+
+        //  
 
         console.log("MongoDB Connected Successfully");
     } catch (error) {
