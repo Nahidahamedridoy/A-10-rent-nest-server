@@ -31,6 +31,7 @@ async function run() {
         const bookingCollection = db.collection("bookings");
         const paymentCollection = db.collection("payments");
         const favoritesCollection = db.collection("favorites");
+        const userCollection = db.collection("user");
 
         // PROPERTIES COLLECTION
 
@@ -377,7 +378,184 @@ async function run() {
             res.send(result);
         });
 
-        //  
+        // ==================== Admin Overview ====================
+
+        app.get("/api/admin/overview", async (req, res) => {
+            try {
+                // Users
+                const totalUsers = await userCollection.countDocuments();
+
+                // Owners
+                const totalOwners = await userCollection.countDocuments({
+                    role: "owner",
+                });
+
+                // Properties
+                const totalProperties = await propertyCollection.countDocuments();
+
+                const approvedProperties =
+                    await propertyCollection.countDocuments({
+                        status: "approved",
+                    });
+
+                const pendingProperties =
+                    await propertyCollection.countDocuments({
+                        status: "pending",
+                    });
+
+                const rejectedProperties =
+                    await propertyCollection.countDocuments({
+                        status: "rejected",
+                    });
+
+                // Bookings
+                const totalBookings = await bookingCollection.countDocuments();
+
+                // Revenue
+                const revenueResult = await bookingCollection
+                    .aggregate([
+                        {
+                            $match: {
+                                paymentStatus: "paid",
+                            },
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalRevenue: {
+                                    $sum: {
+                                        $toDouble: "$amount",
+                                    },
+                                },
+                            },
+                        },
+                    ])
+                    .toArray();
+
+                const totalRevenue =
+                    revenueResult.length > 0
+                        ? revenueResult[0].totalRevenue
+                        : 0;
+
+                res.send({
+                    success: true,
+                    data: {
+                        totalUsers,
+                        totalOwners,
+                        totalProperties,
+                        approvedProperties,
+                        pendingProperties,
+                        rejectedProperties,
+                        totalBookings,
+                        totalRevenue,
+                    },
+                });
+            } catch (error) {
+                console.error(error);
+
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to load admin overview",
+                });
+            }
+        });
+
+
+        //state
+        app.get("/api/admin/stats", async (req, res) => {
+            const total = await propertyCollection.countDocuments();
+
+            const approved = await propertyCollection.countDocuments({
+                status: "approved",
+            });
+
+            const pending = await propertyCollection.countDocuments({
+                status: "pending",
+            });
+
+            const rejected = await propertyCollection.countDocuments({
+                status: "rejected",
+            });
+
+            res.send({
+                total,
+                approved,
+                pending,
+                rejected,
+            });
+        });
+
+        // Admin - All Property
+        app.get("/api/admin/property", async (req, res) => {
+            const result = await propertyCollection.find().toArray();
+            res.send(result);
+        });
+        // users
+        app.get("/api/admin/users", async (req, res) => {
+            const result = await userCollection.find().toArray();
+            res.send(result);
+        });
+
+        
+
+        //  approve
+        app.patch("/api/admin/property/approve/:id", async (req, res) => {
+            const { id } = req.params;
+
+            const result = await propertyCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $set: {
+                        status: "approved",
+                    },
+                }
+            );
+
+            res.send(result);
+        });
+
+        //reject
+        app.patch("/api/admin/property/reject/:id", async (req, res) => {
+            const { id } = req.params;
+            const { feedback } = req.body;
+
+            const result = await propertyCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $set: {
+                        status: "rejected",
+                        rejectionFeedback: feedback,
+                    },
+                }
+            );
+
+            res.send(result);
+        });
+
+        // delete
+        app.delete("/api/admin/property/:id", async (req, res) => {
+            const { id } = req.params;
+
+            const result = await propertyCollection.deleteOne({
+                _id: new ObjectId(id),
+            });
+
+            res.send(result);
+        });
+
+        //update
+        app.patch("/api/admin/property/:id", async (req, res) => {
+            const { id } = req.params;
+
+            const result = await propertyCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $set: req.body,
+                }
+            );
+
+            res.send(result);
+        });
 
         console.log("MongoDB Connected Successfully");
     } catch (error) {
