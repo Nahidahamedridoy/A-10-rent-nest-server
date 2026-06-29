@@ -2,11 +2,12 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
@@ -21,10 +22,33 @@ const client = new MongoClient(uri, {
     },
 });
 
+const JWKS = createRemoteJWKSet(
+    new URL("http://localhost:3000/api/auth/jwks")
+)
+
+const verityToken = async(req, res, next) => {
+    const authHeader = req?.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const { payload } = await jwtVerify(token, JWKS)
+        console.log(payload);
+        next()
+    } catch (error) {
+        return res.status(401).json({ message: "Forbidden" });
+    }
+};
+
 async function run() {
     try {
         const db = client.db("rent_nest");
-        // onek gula
+        // onek gula //unUseable
         const propertiesCollection = db.collection("properties");
         // akta
         const propertyCollection = db.collection("property");
@@ -84,12 +108,12 @@ async function run() {
         });
 
         // tenant my booking 
-        app.get("/api/property/booking/:email", async (req, res) => {
+        app.get("/api/property/booking/:email", verityToken, async (req, res) => {
             const { email } = req.params;
             console.log(email);
 
             const result = await bookingCollection.find({ tenantEmail: email }).toArray();
-            console.log(result);
+            // console.log(result);
             res.send(result)
         });
 
@@ -199,8 +223,8 @@ async function run() {
         // sorting
         app.get("/featured-property", async (req, res) => {
             try {
-                const result = await propertyCollection.find({ status: "Approved" }).limit(6).toArray();
-                // $in: ["approved", "Approved"] 
+                const result = await propertyCollection.find({ status: "approved" }).limit(6).toArray();
+                // .find({ status: { $regex: /^approved$/i } })
                 res.send(result);
             } catch (err) {
                 res.status(500).send({ message: err.message });
@@ -208,7 +232,7 @@ async function run() {
         });
 
         // [id]/single page er jonno
-        app.get('/api/single-property/:id', async (req, res) => {
+        app.get('/api/single-property/:id', verityToken, async (req, res) => {
             const { id } = req.params;
             const query = { _id: new ObjectId(id) };
             const result = await propertyCollection.findOne(query);
@@ -267,7 +291,7 @@ async function run() {
         });
 
         // Add property
-        app.post("/api/property", async (req, res) => {
+        app.post("/api/property", verityToken, async (req, res) => {
             const data = req.body;
             const result = await propertyCollection.insertOne({
                 ...data,
