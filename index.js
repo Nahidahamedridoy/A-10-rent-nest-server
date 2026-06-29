@@ -196,6 +196,17 @@ async function run() {
             res.send(result);
         });
 
+        // sorting
+        app.get("/featured-property", async (req, res) => {
+            try {
+                const result = await propertyCollection.find({ status: "Approved" }).limit(6).toArray();
+                // $in: ["approved", "Approved"] 
+                res.send(result);
+            } catch (err) {
+                res.status(500).send({ message: err.message });
+            }
+        });
+
         // [id]/single page er jonno
         app.get('/api/single-property/:id', async (req, res) => {
             const { id } = req.params;
@@ -369,7 +380,6 @@ async function run() {
         });
 
         //fvt email
-
         app.get("/api/favorites/:email", async (req, res) => {
             const { email } = req.params;
 
@@ -378,88 +388,201 @@ async function run() {
             res.send(result);
         });
 
-        // ==================== Admin Overview ====================
 
-        app.get("/api/admin/overview", async (req, res) => {
+        // single
+        app.get("/properties/:id", async (req, res) => {
             try {
-                // Users
-                const totalUsers = await userCollection.countDocuments();
+                const { id } = req.params;
+                const result = await propertyCollection.findOne({
+                    _id: new ObjectId(id),
+                });
+                if (!result) {
+                    return res.status(404).send({ message: "Property not found" });
+                }
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ message: error.message });
+            }
+        });
 
-                // Owners
+        // ==================== Admin Overview ====================
+        app.get("/api/admin/overview", async (req, res) => {
+
+            try {
+                const totalUsers = await userCollection.countDocuments();
                 const totalOwners = await userCollection.countDocuments({
+
                     role: "owner",
+
                 });
 
-                // Properties
                 const totalProperties = await propertyCollection.countDocuments();
 
-                const approvedProperties =
-                    await propertyCollection.countDocuments({
-                        status: "approved",
-                    });
+                const approvedProperties = await propertyCollection.countDocuments({
 
-                const pendingProperties =
-                    await propertyCollection.countDocuments({
-                        status: "pending",
-                    });
+                    status: "approved",
 
-                const rejectedProperties =
-                    await propertyCollection.countDocuments({
-                        status: "rejected",
-                    });
+                });
+                const pendingProperties = await propertyCollection.countDocuments({
 
-                // Bookings
+                    status: "pending",
+
+                });
+                const rejectedProperties = await propertyCollection.countDocuments({
+
+                    status: "rejected",
+
+                });
+
+
                 const totalBookings = await bookingCollection.countDocuments();
 
-                // Revenue
                 const revenueResult = await bookingCollection
+
                     .aggregate([
+
+                        {
+
+                            $match: {
+
+                                paymentStatus: "paid",
+
+                            },
+                        },
+
+                        {
+                            $group: {
+
+                                _id: null,
+
+                                totalRevenue: {
+
+                                    $sum: {
+
+                                        $toDouble: "$amount",
+
+                                    },
+
+                                },
+
+                            },
+
+                        },
+
+                    ])
+
+                    .toArray();
+
+                const totalRevenue =
+
+                    revenueResult.length > 0
+
+                        ? revenueResult[0].totalRevenue
+
+                        : 0;
+                const monthlyRevenueResult = await bookingCollection
+
+                    .aggregate([
+
                         {
                             $match: {
                                 paymentStatus: "paid",
                             },
+
                         },
+
                         {
+
                             $group: {
-                                _id: null,
-                                totalRevenue: {
+
+                                _id: {
+
+                                    year: {
+
+                                        $year: "$bookingDate",
+
+                                    },
+                                    month: {
+                                        $month: "$bookingDate",
+                                    },
+                                },
+                                revenue: {
                                     $sum: {
                                         $toDouble: "$amount",
                                     },
                                 },
                             },
                         },
+                        {
+                            $sort: {
+                                "_id.year": 1,
+                                "_id.month": 1,
+                            },
+                        },
                     ])
                     .toArray();
+                // Monthly Bookings
+                const monthlyBookingsResult = await bookingCollection
+                    .aggregate([
+                        {
+                            $group: {
+                                _id: {
+                                    year: {
+                                        $year: "$bookingDate",
+                                    },
+                                    month: {
+                                        $month: "$bookingDate",
+                                    },
+                                },
+                                bookings: {
+                                    $sum: 1,
+                                },
+                            },
+                        },
+                        {
+                            $sort: {
+                                "_id.year": 1,
+                                "_id.month": 1,
+                            },
+                        },
+                    ])
+                    .toArray();
+                const monthNames = [
 
-                const totalRevenue =
-                    revenueResult.length > 0
-                        ? revenueResult[0].totalRevenue
-                        : 0;
-
+                    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                ];
+                // Format Revenue Data
+                const monthlyRevenue = monthlyRevenueResult.map((item) => ({
+                    month: monthNames[item._id.month - 1],
+                    revenue: item.revenue,
+                }));
+                // Format Booking Data
+                const monthlyBookings = monthlyBookingsResult.map((item) => ({
+                    month: monthNames[item._id.month - 1],
+                    bookings: item.bookings,
+                }));
                 res.send({
                     success: true,
                     data: {
-                        totalUsers,
-                        totalOwners,
-                        totalProperties,
-                        approvedProperties,
-                        pendingProperties,
-                        rejectedProperties,
-                        totalBookings,
-                        totalRevenue,
+                        totalUsers, totalOwners, totalProperties, approvedProperties, pendingProperties, rejectedProperties, totalBookings, totalRevenue, monthlyRevenue, monthlyBookings,
                     },
                 });
             } catch (error) {
-                console.error(error);
+                console.error("Admin Overview Error:", error);
+
+
 
                 res.status(500).send({
-                    success: false,
-                    message: "Failed to load admin overview",
-                });
-            }
-        });
 
+                    success: false,
+
+                    message: error.message,
+
+                });
+
+            }
+
+        });
 
         //state
         app.get("/api/admin/stats", async (req, res) => {
@@ -490,6 +613,40 @@ async function run() {
             const result = await propertyCollection.find().toArray();
             res.send(result);
         });
+
+        //all payments
+        app.get("/api/admin/payments", async (req, res) => {
+            try {
+                const payments = await bookingCollection
+                    .find({
+                        paymentStatus: "paid",
+                    })
+                    .sort({ bookingDate: -1 })
+                    .toArray();
+
+                const result = await Promise.all(
+                    payments.map(async (payment) => {
+                        const property = await propertyCollection.findOne({
+                            _id: new ObjectId(payment.propertyId),
+                        });
+
+                        return {
+                            ...payment,
+                            ownerName: property?.ownerInfo?.name || "N/A",
+                            ownerEmail: property?.ownerInfo?.email || "N/A",
+                        };
+                    })
+                );
+
+                res.send(result);
+            } catch (err) {
+                console.log(err);
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to load payments",
+                });
+            }
+        });
         // users
         app.get("/api/admin/users", async (req, res) => {
             const result = await userCollection.find().toArray();
@@ -517,8 +674,43 @@ async function run() {
             res.send(result);
         });
 
-        
+        //booking approve payment
+        app.patch("/api/admin/bookings/approve/:id", async (req, res) => {
+            const { id } = req.params;
 
+            const result = await bookingCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $set: {
+                        bookingStatus: "approved",
+                    },
+                }
+            );
+
+            res.send({
+                success: true,
+                modifiedCount: result.modifiedCount,
+            });
+        });
+
+        //booking reject payment
+        app.patch("/api/admin/bookings/reject/:id", async (req, res) => {
+            const { id } = req.params;
+
+            const result = await bookingCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $set: {
+                        bookingStatus: "rejected",
+                    },
+                }
+            );
+
+            res.send({
+                success: true,
+                modifiedCount: result.modifiedCount,
+            });
+        });
 
         //user role
         app.patch("/api/admin/users/role/:id", async (req, res) => {
@@ -567,6 +759,7 @@ async function run() {
 
             res.send(result);
         });
+
 
         //reject
         app.patch("/api/admin/property/reject/:id", async (req, res) => {
