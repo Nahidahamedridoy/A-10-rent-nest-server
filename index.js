@@ -496,16 +496,54 @@ async function run() {
             res.send(result);
         });
 
+        //booking
+        app.get("/api/admin/bookings", async (req, res) => {
+            const bookings = await bookingCollection.find().toArray();
+
+            const result = await Promise.all(
+                bookings.map(async (booking) => {
+                    const property = await propertyCollection.findOne({
+                        _id: new ObjectId(booking.propertyId),
+                    });
+
+                    return {
+                        ...booking,
+                        ownerName: property?.ownerInfo?.name || "N/A",
+                        bookingStatus: property?.status || "pending",
+                    };
+                })
+            );
+
+            res.send(result);
+        });
+
+        
+
+
         //user role
         app.patch("/api/admin/users/role/:id", async (req, res) => {
             const { id } = req.params;
             const { role } = req.body;
 
-            const result = await usersCollection.updateOne(
+            const result = await userCollection.updateOne(
                 { _id: new ObjectId(id) },
-                {
-                    $set: { role },
-                }
+                { $set: { role } }
+            );
+
+            res.send({
+                success: true,
+                modifiedCount: result.modifiedCount,
+            });
+        });
+
+        //Block/Unblock
+        app.patch("/api/admin/users/block/:id", async (req, res) => {
+            const { id } = req.params;
+            const { isBlocked } = req.body;
+
+            const result = await userCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { isBlocked } }
             );
 
             res.send({
