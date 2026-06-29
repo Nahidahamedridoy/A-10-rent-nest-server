@@ -23,10 +23,10 @@ const client = new MongoClient(uri, {
 });
 
 const JWKS = createRemoteJWKSet(
-    new URL("http://localhost:3000/api/auth/jwks")
+    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
 )
 
-const verityToken = async(req, res, next) => {
+const verityToken = async (req, res, next) => {
     const authHeader = req?.headers.authorization;
     if (!authHeader) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -109,8 +109,13 @@ async function run() {
 
         // tenant my booking 
         app.get("/api/property/booking/:email", verityToken, async (req, res) => {
+            
             const { email } = req.params;
-            console.log(email);
+
+            const { page = 1, limit = 6 } = req.query;
+            const skip = (Number(page) - 1) * Number(limit)
+
+            // console.log(email);
 
             const result = await bookingCollection.find({ tenantEmail: email }).toArray();
             // console.log(result);
@@ -243,19 +248,21 @@ async function run() {
         app.get("/api/property/:email", async (req, res) => {
             const { email } = req.params;
 
-            const result = await propertyCollection
-                .find({
-                    "ownerInfo.email": email,
-                })
-                .toArray();
+            const { page = 1, limit = 6 } = req.query;
+            const skip = (Number(page) - 1) * Number(limit)
+
+
+            const result = await propertyCollection.find({ "ownerInfo.email": email }).skip(skip).
+                limit(Number(limit)).toArray();
 
             res.send(result);
         });
 
 
-
         // payment , booking
         app.post("/api/property/booking", async (req, res) => {
+
+
             const { amount, propertyId, propertyTitle, duration, rentType,
                 tenantEmail, paymentType, transactionId, paymentStatus } = req.body;
 
@@ -783,7 +790,6 @@ async function run() {
 
             res.send(result);
         });
-
 
         //reject
         app.patch("/api/admin/property/reject/:id", async (req, res) => {
