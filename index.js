@@ -496,7 +496,23 @@ async function run() {
             res.send(result);
         });
 
-        
+        //user role
+        app.patch("/api/admin/users/role/:id", async (req, res) => {
+            const { id } = req.params;
+            const { role } = req.body;
+
+            const result = await usersCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $set: { role },
+                }
+            );
+
+            res.send({
+                success: true,
+                modifiedCount: result.modifiedCount,
+            });
+        });
 
         //  approve
         app.patch("/api/admin/property/approve/:id", async (req, res) => {
