@@ -118,7 +118,7 @@ async function run() {
             // console.log(email);
 
             const result = await bookingCollection.find({ tenantEmail: email }).toArray();
-            // console.log(result);
+            console.log(result);
             res.send(result)
         });
 
