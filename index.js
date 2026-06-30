@@ -695,25 +695,51 @@ async function run() {
             res.send(result);
         });
 
-        //booking
+        // Admin All Bookings (Pagination)
         app.get("/api/admin/bookings", async (req, res) => {
-            const bookings = await bookingCollection.find().toArray();
+            try {
+                const page = parseInt(req.query.page) || 1;
+                const limit = parseInt(req.query.limit) || 5;
 
-            const result = await Promise.all(
-                bookings.map(async (booking) => {
-                    const property = await propertyCollection.findOne({
-                        _id: new ObjectId(booking.propertyId),
-                    });
+                const skip = (page - 1) * limit;
 
-                    return {
-                        ...booking,
-                        ownerName: property?.ownerInfo?.name || "N/A",
-                        bookingStatus: property?.status || "pending",
-                    };
-                })
-            );
+                const totalBookings = await bookingCollection.countDocuments();
 
-            res.send(result);
+                const bookings = await bookingCollection
+                    .find()
+                    .sort({ bookingDate: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .toArray();
+
+                const result = await Promise.all(
+                    bookings.map(async (booking) => {
+                        const property = await propertyCollection.findOne({
+                            _id: new ObjectId(booking.propertyId),
+                        });
+
+                        return {
+                            ...booking,
+                            ownerName: property?.ownerInfo?.name || "N/A",
+                            bookingStatus: property?.status || "pending",
+                        };
+                    })
+                );
+
+                res.send({
+                    bookings: result,
+                    totalBookings,
+                    currentPage: page,
+                    totalPages: Math.ceil(totalBookings / limit),
+                });
+            } catch (err) {
+                console.log(err);
+
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to load bookings",
+                });
+            }
         });
 
         //booking approve payment
