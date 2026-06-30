@@ -244,6 +244,78 @@ async function run() {
             res.send(result);
         });
 
+
+        //owner dashboard
+        app.get("/api/owner/dashboard/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+
+                // Owner Properties
+                const properties = await propertyCollection
+                    .find({
+                        "ownerInfo.email": email,
+                    })
+                    .toArray();
+
+                const totalProperties = properties.length;
+
+                const propertyIds = properties.map((item) => item._id.toString());
+
+                // Paid Bookings
+                const bookings = await bookingCollection
+                    .find({
+                        propertyId: {
+                            $in: propertyIds,
+                        },
+                        paymentStatus: "paid",
+                    })
+                    .toArray();
+
+                const totalBookings = bookings.length;
+
+                const totalEarnings = bookings.reduce(
+                    (sum, booking) => sum + Number(booking.amount),
+                    0
+                );
+
+                // Last 12 Months Earnings
+                const monthlyMap = {};
+
+                bookings.forEach((booking) => {
+                    const date = new Date(booking.bookingDate);
+
+                    const month = date.toLocaleString("en-US", {
+                        month: "short",
+                        year: "2-digit",
+                    });
+
+                    if (!monthlyMap[month]) {
+                        monthlyMap[month] = 0;
+                    }
+
+                    monthlyMap[month] += Number(booking.amount);
+                });
+
+                const monthlyEarnings = Object.keys(monthlyMap).map((month) => ({
+                    month,
+                    earnings: monthlyMap[month],
+                }));
+
+                res.send({
+                    totalProperties,
+                    totalBookings,
+                    totalEarnings,
+                    monthlyEarnings,
+                });
+            } catch (error) {
+                console.log(error);
+
+                res.status(500).send({
+                    message: "Dashboard Failed",
+                });
+            }
+        });
+
         // Get property by owner email
         app.get("/api/property/:email", async (req, res) => {
             const { email } = req.params;
