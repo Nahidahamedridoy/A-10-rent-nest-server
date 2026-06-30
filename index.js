@@ -109,7 +109,7 @@ async function run() {
 
         // tenant my booking 
         app.get("/api/property/booking/:email", verityToken, async (req, res) => {
-            
+
             const { email } = req.params;
 
             const { page = 1, limit = 6 } = req.query;
@@ -248,13 +248,7 @@ async function run() {
         app.get("/api/property/:email", async (req, res) => {
             const { email } = req.params;
 
-            const { page = 1, limit = 6 } = req.query;
-            const skip = (Number(page) - 1) * Number(limit)
-
-
-            const result = await propertyCollection.find({ "ownerInfo.email": email }).skip(skip).
-                limit(Number(limit)).toArray();
-
+            const result = await propertyCollection.find({ "ownerInfo.email": email }).toArray();
             res.send(result);
         });
 
@@ -641,8 +635,25 @@ async function run() {
 
         // Admin - All Property
         app.get("/api/admin/property", async (req, res) => {
-            const result = await propertyCollection.find().toArray();
-            res.send(result);
+            const page = parseInt(req.query.page) || 1;
+            const limit = 6; // প্রতি পেজে ৬টি
+
+            const skip = (page - 1) * limit;
+
+            const totalProperties = await propertyCollection.countDocuments();
+
+            const properties = await propertyCollection
+                .find()
+                .skip(skip)
+                .limit(limit)
+                .toArray();
+
+            res.send({
+                properties,
+                totalProperties,
+                currentPage: page,
+                totalPages: Math.ceil(totalProperties / limit),
+            });
         });
 
         //all payments
